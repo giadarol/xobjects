@@ -61,9 +61,7 @@ log = logging.getLogger(__name__)
 
 
 class Field:
-    def __init__(
-        self, ftype, default=None, readonly=False, default_factory=None
-    ):
+    def __init__(self, ftype, default=0, readonly=False, default_factory=None):
         self.ftype = ftype
         self.default = default
         if default_factory is not None:

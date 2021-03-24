@@ -223,7 +223,7 @@ class Array(metaclass=MetaArray):
                                     "Array: incompatible dimensions"
                                 )
                 else:
-                    if hasattr(cls._shape):
+                    if hasattr(cls, "_shape"):
                         shape = []
                         dshape = []  # index of dynamic shapes
                         for ndim in cls._shape:
@@ -241,8 +241,8 @@ class Array(metaclass=MetaArray):
                 info.dshape = dshape
                 info.order = mk_order(shape, cls._order)
                 items = np.prod(shape)
-            if cls._is_static_itemtype:
-                offset += items * cls._itemtype  # starting of data
+            if cls._is_static_type:
+                offset += items * cls._itemtype._size  # starting of data
                 info.data_offset = offset  # starting of data
                 info.size = offset
             else:
@@ -264,6 +264,7 @@ class Array(metaclass=MetaArray):
         self._buffer = buffer
         self._offset = offset
         coffset = offset
+
         if cls._size is None:
             self._size = Int64._from_buffer(self._buffer, coffset)
             coffset += 8
@@ -275,20 +276,28 @@ class Array(metaclass=MetaArray):
                 shape.append(Int64._from_buffer(self._buffer, coffset))
                 coffset += 8
             self._shape = shape
-        elif not is_static_shape:
-            shape = []
-            for dd in cls._shape:
-                if dd is None:
-                    shape.append(Int64._from_buffer(self._buffer, coffset))
-                    coffset += 8
-                else:
-                    shape.append(dd)
-            self._shape = shape
         else:
-            shape = cls._shape
-        if not is_static_type:
-            items = prod(shape)
-            self._offsets = Int64._array_from_buffer(buffer, coffset, items)
+            is_static_shape = True
+            for ss in cls._shape:
+                if ss is None:
+                    is_static_shape = False
+                    break
+
+            if not is_static_shape:
+                shape = []
+                for dd in cls._shape:
+                    if dd is None:
+                        shape.append(Int64._from_buffer(self._buffer, coffset))
+                        coffset += 8
+                    else:
+                        shape.append(dd)
+                self._shape = shape
+            else:
+                shape = cls._shape
+        # # TODO: I had to exclude this!!!
+        # if not is_static_type:
+        #     items = prod(shape)
+        #     self._offsets = Int64._array_from_buffer(buffer, coffset, items)
         return self
 
     @classmethod
@@ -304,19 +313,19 @@ class Array(metaclass=MetaArray):
                 if nd is None:
                     header.append(info.shape[ii])
         if len(header) > 0:
-            Int64.array_to_buffer(
-                buffer, coffset, np.array(header, dtype="i8")
-            )
+            Int64._to_buffer(buffer, coffset, np.array(header, dtype="i8"))
             coffset += 8 * len(header)
         if not cls._is_static_type:
-            Int64.array_to_buffer(buffer, coffset, info.offsets)
+            Int64._to_buffer(buffer, coffset, info.offsets)
         if isinstance(value, np.ndarray) and hasattr(
             cls._itemtype, "_dtype"
         ):  # not robust try scalar classes
             if cls._itemtype._dtype == value.dtype:
-                buffer.write(value.tobytes())
+                buffer.write(coffset, value.tobytes())
             else:
-                buffer.write(value.astype(cls._itemtype._dtype).tobytes())
+                buffer.write(
+                    coffset, value.astype(cls._itemtype._dtype).tobytes()
+                )
         else:
             for idx in iter_index(info.shape, cls._order):
                 cls._itemtype._to_buffer(
@@ -330,9 +339,11 @@ class Array(metaclass=MetaArray):
         # determin resources
         info = self.__class__._inspect_args(*args)
 
-        self._buffer, self._offset = get_a_buffer(_context, _buffer, _offset)
+        self._buffer, self._offset = get_a_buffer(
+            context=_context, buffer=_buffer, offset=_offset
+        )
 
-        if info.value is not None:
+        if hasattr(info, "value") and info.value is not None:
             self.__class__._to_buffer(
                 self._buffer, self._offset, info.value, info
             )

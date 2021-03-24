@@ -14,8 +14,9 @@ try:
 
     _enabled = True
 except ImportError:
-    print("WARNING:"
-            "cffi is not installed, this platform will not be available")
+    print(
+        "WARNING:" "cffi is not installed, this platform will not be available"
+    )
 
     cffi = ModuleNotAvailable(
         message=("cffi is not installed. " "this platform is not available!")
@@ -23,6 +24,7 @@ except ImportError:
     _enabled = False
 
 type_mapping = {np.int32: "int32_t", np.int64: "int64_y", np.float64: "double"}
+
 
 class ContextCpu(Context):
 
